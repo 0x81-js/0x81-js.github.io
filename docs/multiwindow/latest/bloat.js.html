@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: bloat.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: bloat.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>const core = require("./multiwindow.js");
+const Multiline = require("./multiline.js");
+const {EventEmitter} = require("events");
+const menuCore = require("./menuCore.js");
+
+/**
+ * @typedef {Object} keypress
+ * @property {boolean} ctrl - if the ctrl key is pressed
+ * @property {boolean} meta - if the meta key is pressed
+ * @property {boolean} shift - if the shift key is pressed
+ * @prop {string} name - the name of the key
+ */
+
+/** The extended version of the multiwindow class
+ * @extends MultiWindow
+ */
+class Extended extends core {
+    /**
+     * @param {number[]} columns - the sizes of the columns
+     * @param {number[]} rows - the sizes of the rows
+     * @param {string} colorOfBorder - the color to make the border, see color_codes.txt for more info
+     * @param {Object} options - options for the instance
+     * @param {paddingOptions} options.padding - global padding that will be set on all containers
+     * @param {borderOptions} options.border - options for what to draw borders out of
+     */
+    constructor (columns, rows, colorOfBorder, options) {
+        super(columns, rows, colorOfBorder, options);
+    }
+
+    /**
+     * Enables input processing for input, returns an event emitter
+     * @returns {module:events.EventEmitter.EventEmitter}
+     */
+    enableInput() {
+        this.inputEnabled = true;
+        this.inputEmitter = new EventEmitter();
+
+        const readline = require('readline');
+        readline.emitKeypressEvents(process.stdin);
+        if (process.stdin.setRawMode){
+            process.stdin.setRawMode(true);
+        }
+        process.stdin.resume();
+
+        this.currentData = "";
+        let outer = this;
+
+        process.stdin.on('keypress', function (ch, key) {
+            //TODO: handle keybinds here
+
+            //line events
+            if (!key.ctrl &amp;&amp; !key.meta) {
+                switch (key.sequence) {
+                    case "\b":
+                        if (outer.currentData !== "") {
+                            outer.currentData = outer.currentData.slice(0, -1);
+                        }
+                        break;
+                    case "\r":
+                        /**
+                         * An event spitting out a whole line of text, on newline
+                         * @event Extended#line
+                         * @see Extended#enableInput
+                         * @prop {string} data - the string that was captured
+                         */
+                        outer.inputEmitter.emit("line", outer.currentData);
+                        outer.currentData = "";
+                        break;
+                    default:
+                        outer.currentData += key.sequence;
+                        break;
+                }
+            }
+
+            /**
+             * An event that is emitted on every keypress,
+             * returns an keypress Object
+             * @event Extended#raw
+             * @see Extended#enableInput
+             * @prop {keypress} key - the key that was pressed
+             */
+            outer.inputEmitter.emit("raw", key);
+        });
+        return this.inputEmitter;
+    }
+
+    /**
+     * Write all registered keypress events to this container, and clear on newline
+     * Requires enableInput to be called first
+     * @see Extended#enableInput
+     * @param {number} containerY - the y coordinate of the target container
+     * @param {number} containerX - the x coordinate of the target container
+     */
+    pipeInput(containerY, containerX) {
+        this.inputEmitter.on("raw", (d) => {
+            //this.containers[0][0].writeAt(0,0,"wat");
+            if (d.sequence === "\r") {
+                this.containers[containerY][containerX].writeAt(0,0, (" ".repeat(999)));
+            } else {
+                this.containers[containerY][containerX].writeAt(0,0, this.currentData+(" ".repeat(999)));
+            }
+
+        });
+    }
+
+    /**
+     * Incomplete function, for creating keybinds
+     * @todo Implement function
+     */
+    createKeybind (key, useCtrl, useMeta, blocking) {
+        //TODO: implement keyboard system
+    }
+
+    /**
+     * Get the Multiline class
+     * @static
+     * @returns {Multiline}
+     */
+    static get multiline () {
+        return Multiline;
+    }
+
+    /**
+     * Same as multiline
+     * @see multiline
+     * @static
+     * @returns {Multiline}
+     */
+    static get textStore () {
+        return Multiline;
+    }
+
+    /**
+     * Get the menuCore class
+     * @static
+     * @returns {menuCore}
+     */
+    static get menuCore() {
+        return menuCore;
+    }
+
+    /**
+     * Highlight a piece of text
+     * @static
+     * @param {string} text - the text to highlight
+     * @returns {string} - the highlighted text
+     */
+    static highlight (text) {
+        return `\x1b[7m${text}\x1b[0m`;
+    }
+
+    /**
+     * Underline a piece of text
+     * @param {string} text - the text to underline
+     * @static
+     * @returns {string} - the underlined text
+     */
+    static underline (text) {
+        return `\x1b[4m${text}\x1b[0m`;
+    }
+
+    /**
+     * The input emitter for enableInput
+     * @see Extended#enableInput
+     * @returns {module:events.EventEmitter.EventEmitter}
+     */
+    static get emitter () {
+        return this.inputEmitter;
+    }
+}
+
+module.exports = Extended;</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-cursor.html">cursor</a></li><li><a href="module-MultiWindow.html">MultiWindow</a></li></ul><h3>Classes</h3><ul><li><a href="Container.html">Container</a></li><li><a href="Extended.html">Extended</a></li><li><a href="menuCore.html">menuCore</a></li><li><a href="Multiline.html">Multiline</a></li><li><a href="MultiWindow.html">MultiWindow</a></li></ul><h3>Events</h3><ul><li><a href="Extended.html#event:line">line</a></li><li><a href="Extended.html#event:raw">raw</a></li></ul><h3><a href="global.html">Global</a></h3>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.4</a> on Sat May 02 2020 16:51:23 GMT+0200 (Central European Summer Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

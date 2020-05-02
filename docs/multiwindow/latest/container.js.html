@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: container.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: container.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>const cursor = require("./cursor.js");
+const {EventEmitter} = require("events");
+
+/** Class representing a container */
+class Container {
+    /**
+     * Only used internally.
+     */
+    constructor (sizeX, sizeY, locationX, locationY) {
+        this.originalSizes = {
+            sizeX : sizeX,
+            sizeY : sizeY,
+            locationX : locationX,
+            locationY : locationY
+        };
+
+        this.sizeX = sizeX;
+        this.sizeY = sizeY;
+        this.locationX = locationX;
+        this.locationY = locationY;
+
+        this.currentY = 0;
+        this.currentX = 0;
+
+        this.appendData = [];
+
+        this.borderColor = undefined;
+    }
+
+    /**
+     * change location of cursor relative to container
+     * @param {number} x the x value
+     * @param {number} y the y value
+     */
+    cLoc (x, y) {
+        if ((x >= this.sizeX || y >= this.sizeY)) {
+            return;
+        }
+
+        this.currentX = x;
+        this.currentY = y;
+        cursor.move(this.currentX+this.locationX, this.currentY+this.locationY);
+    }
+
+    /**
+     * Acts as a newline inside the container
+     */
+    cNL () {
+        if (this.currentY+1 >= this.sizeY) {
+            return;
+        }
+        this.currentY++;
+        cursor.move(this.currentX+this.locationX, this.currentY+this.locationY);
+    }
+
+    /**
+     * Sets the content to the content of an array
+     * @param {string[]} array the array
+     * @param {boolean} [bind_to_bottom=false] If content should be aligned to bottom of screen
+     */
+    setTextByArray (array, bind_to_bottom) {
+        this.clear();
+        if (bind_to_bottom === undefined) {
+            bind_to_bottom = false;
+        }
+        if (bind_to_bottom) {
+            let start = this.sizeY-array.length;
+            this.cLoc(0, start);
+            array.forEach((e) => {
+                cursor.wrap(e, this.sizeX-this.currentX);
+                this.cNL();
+            })
+        } else {
+            this.cLoc(0,0);
+            array.forEach((e) => {
+                cursor.wrap(e, this.sizeX-this.currentX);
+                this.cNL();
+            })
+        }
+    }
+
+    /**
+     * Writes text at a specific line, same as writing at that x value
+     * @param {number} line - the line to write at
+     * @param {string} data - the string to write at that line
+     */
+    setTextAtLine (line, data) {
+        if (line >= this.sizeY) {
+            return;
+        }
+        this.cLoc(0, line);
+        cursor.wrap(data, this.sizeX-this.currentX);
+    }
+
+    /**
+     * Clears the whole container
+     */
+    clearContainer () {
+        let blank = " ";
+        for (let i = 0; i &lt;= this.sizeY-1; i++) {
+            this.cLoc(0,i);
+            cursor.write(blank.repeat(this.sizeX));
+        }
+        this.active();
+    }
+
+    /**
+     * Writes text at the current position of the cursor in that container.
+     * @param {string} data - the data to write
+     */
+    write (data) {
+        cursor.wrap(data, this.sizeX-this.currentX);
+    }
+
+    /**
+     * Write text at a specific position
+     * @param {number} x - x location
+     * @param {number} y - y location
+     * @param {string} data - the string to write
+     */
+    writeAt (x, y, data) {
+        if ((x >= this.sizeX || y >= this.sizeY)) {
+            return;
+        }
+        this.cLoc(x, y);
+        cursor.wrap(data, this.sizeX-this.currentX);
+    }
+
+    /**
+     * Move to cursor to 0,0 of this container
+     */
+    active () {
+        this.cLoc(0,0);
+    }
+
+    /**
+     * This makes the container act like a new console.
+     * New strings will always be appended to the bottom of the container, and old ones will be moved up.
+     * @param {string} data - the string to append
+     */
+    append (data) {
+        if (this.appendData === undefined) {
+            this.appendData = [];
+        }
+        this.appendData[this.appendData.length] = data+(" ".repeat(this.sizeX));
+        if (this.appendData.length >= this.sizeY+1) {
+            this.appendData.shift();
+        }
+        this.setTextByArray(this.appendData);
+    }
+
+    /**
+     * Update the padding of the container later on
+     * @param {paddingOptions} options - the new padding for the container
+     */
+    createPadding (options) {
+        this.sizeX = this.originalSizes.sizeX - options.right;
+        this.sizeY = this.originalSizes.sizeY - options.bottom;
+
+        this.locationX = this.originalSizes.locationX + options.left;
+        this.locationY = this.originalSizes.locationY + options.top;
+        this.sizeX -= options.left;
+        this.sizeY -= options.top;
+    }
+
+    /**
+     * Function that is only used internally.
+     * @ignore
+     */
+    setFrameColor (color) {
+        this.borderColor = color;
+    }
+
+    /**
+     * Change the title of the container. Warning: if changed multiple times it will leaves holes in the border.
+     * @param {string} text - the text to change it to
+     * @param {number} [offset=2] - how far to offset the title from the edge, usually best to leave at default.
+     */
+    writeTitle (text, offset) {
+        if (offset === undefined || offset === null) {
+            offset = 2;
+        }
+
+        cursor.move(this.originalSizes.locationX+offset, this.originalSizes.locationY-1);
+        cursor.write(this.borderColor+text);
+        cursor.resetColor();
+    }
+
+    /**
+     * Same as writeTitle
+     * @see Container#writeTitle
+     */
+    setTitle (text, offset) {
+        this.writeTitle(text, offset);
+    }
+
+    /**
+     * Clear the container and then write text at 0,0
+     * @param {string} text - the text to write
+     */
+    clearWrite (text) {
+        this.clearContainer();
+        this.write(text);
+    }
+
+    /**
+     * Same as clearContainer
+     * @see Container#clearContainer
+     */
+    clear () {
+        this.clearContainer();
+    }
+}
+
+module.exports = Container;</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-cursor.html">cursor</a></li><li><a href="module-MultiWindow.html">MultiWindow</a></li></ul><h3>Classes</h3><ul><li><a href="Container.html">Container</a></li><li><a href="Extended.html">Extended</a></li><li><a href="menuCore.html">menuCore</a></li><li><a href="Multiline.html">Multiline</a></li><li><a href="MultiWindow.html">MultiWindow</a></li></ul><h3>Events</h3><ul><li><a href="Extended.html#event:line">line</a></li><li><a href="Extended.html#event:raw">raw</a></li></ul><h3><a href="global.html">Global</a></h3>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.4</a> on Sat May 02 2020 16:51:23 GMT+0200 (Central European Summer Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

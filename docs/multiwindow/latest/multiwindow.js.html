@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: multiwindow.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: multiwindow.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>const cursor = require("./cursor.js");
+const Container = require("./container.js");
+
+/**
+ * @typedef {Object} paddingOptions
+ * @property {number} [top=0] - the padding from the top
+ * @property {number} [bottom=0] - the padding from the bottom
+ * @property {number} [left=0] - the padding from the left
+ * @property {number} [right=0] - the padding from the right
+ */
+
+/**
+ * @typedef {Object} borderOptions
+ * @property {string} [junction = "+"] - the character to use for junctions
+ * @property {string} [vertical = "|"] - the character to use for vertical lines
+ * @property {string} [horizontal = "-"]- the character to use for horizontal lines
+ */
+
+/**
+ * The core class
+ */
+class MultiWindow {
+    /**
+     * @param {number[]} columns - the sizes of the columns
+     * @param {number[]} rows - the sizes of the rows
+     * @param {string} colorOfBorder - the color to make the border, see color_codes.txt for more info
+     * @param {Object} [options] - options for the instance
+     * @param {paddingOptions} [options.padding] - global padding that will be set on all containers
+     * @param {borderOptions} [options.border] - options for what to draw borders out of
+     */
+    constructor (columns, rows, colorOfBorder, options) {
+        cursor.clear();
+
+        if (options === undefined) {
+            options = {};
+        }
+
+        if (options.border === undefined) {
+            this.borderOptions = {
+                junction: "+",
+                horizontal: "—",
+                vertical: "|"
+            };
+        } else {
+            this.borderOptions = options.border;
+        }
+        if (options.padding === undefined) {
+            this.paddingGlobal = {
+                top: 0,
+                bottom: 0,
+                right: 0,
+                left: 0
+            }
+        } else {
+            this.paddingGlobal = options.padding;
+        }
+        this.columns = columns;
+        this.rows = rows;
+        this.colorOfBorder = colorOfBorder;
+
+        this.containers = [];
+        let offsetY = 1;
+        let offsetX = 1;
+        for (let iY = 0; iY &lt; this.rows.length; iY++) {
+            this.containers[this.containers.length] = [];
+            for (let iX = 0; iX &lt; this.columns.length; iX++) {
+                this.containers[iY][iX] = new Container(this.columns[iX], this.rows[iY], offsetX, offsetY);
+                this.containers[iY][iX].createPadding(this.paddingGlobal);
+                this.containers[iY][iX].setFrameColor(this.colorOfBorder);
+                offsetX += 1 + this.columns[iX];
+            }
+            offsetY += 1 + this.rows[iY];
+            offsetX = 1;
+        }
+
+        this.clearAll();
+        this.drawBorders();
+
+        //exiting
+        this.setupExit();
+
+        this.inputEnabled = false;
+        this.currentData = "";
+    }
+
+    /**
+     * Internal function called for drawing the main borders.
+     */
+    drawBorders () {
+        cursor.write(this.colorOfBorder);
+        cursor.move(0,0);
+
+        let junction = this.borderOptions.junction;
+        let horizontal = this.borderOptions.horizontal;
+        let vertical = this.borderOptions.vertical;
+
+        //print horizontal lines
+        let horizontalString = junction;
+        this.columns.forEach((e) => {
+            horizontalString += horizontal.repeat(e) + junction;
+        });
+        let offsetH = 0;
+        //print first
+        cursor.move(0,0);
+        cursor.write(horizontalString);
+        //print rest
+        this.rows.forEach((e) => {
+            offsetH++;
+            offsetH += e;
+
+            cursor.move(0, offsetH);
+            cursor.write(horizontalString);
+        });
+
+        //print vertical lines
+        let offsetFirst = 1;
+        this.rows.forEach((eY) => {
+            for (let i = 0; i&lt; eY; i++) {
+                cursor.move(0, offsetFirst);
+                cursor.write(vertical);
+                offsetFirst++;
+            }
+            offsetFirst++;
+        });
+        let erofs = 0;
+        this.columns.forEach((eR) => {
+            let offsetV = 1;
+            erofs += eR + 1;
+            this.rows.forEach((eY) => {
+                for (let i = 0; i&lt; eY; i++) {
+                    cursor.move(erofs, offsetV);
+                    cursor.write(vertical);
+                    offsetV++;
+                }
+                offsetV++;
+            });
+        });
+
+        cursor.resetColor();
+        cursor.move(0,0);
+    }
+
+    /**
+     * Clear all containers
+     */
+    clearAll () {
+        this.containers.forEach((e) => {
+            e.forEach((cont) => {
+                cont.clearContainer();
+            })
+        })
+    }
+
+    /**
+     * Get the container at the specified coordinates
+     * @param {number} y - the container y position
+     * @param {number} x - the container x position
+     * @returns {Container} - the container
+     */
+    container (y, x) {
+        return this.containers[y][x];
+    }
+
+    /**
+     * Same as container
+     * @see MultiWindow#container
+     */
+    c (x, y) {
+        return this.container(y, x);
+    }
+
+    /**
+     * Internally used function, moves cursor to bottom of console
+     */
+    gotoEnd () {
+        let line = 1;
+        this.rows.forEach((e) => {
+            line += 1 + e;
+        });
+        cursor.move(0,line+1);
+    }
+
+    /**
+     * Exits the process
+     * Same as process.exit() but with correct formatting
+     */
+    exit () {
+        this.gotoEnd();
+        process.exit();
+    }
+
+    /**
+     * Internally used function for setting up exit handling
+     */
+    setupExit () {
+        const readline = require('readline');
+        readline.emitKeypressEvents(process.stdin);
+        if (process.stdin.setRawMode){
+            process.stdin.setRawMode(true)
+        }
+        process.stdin.resume();
+
+        let outer = this;
+        process.stdin.on('keypress', function (ch, key) {
+            if (key.ctrl &amp;&amp; key.name === "c") {
+                outer.exit();
+            }
+        });
+
+    }
+
+    /**
+     * Return the cursor module
+     * @static
+     * @type {module:cursor}
+     */
+    static get cursor () {
+        return cursor;
+    }
+
+    /**
+     * Returns the container class
+     * @static
+     * @type {Container}
+     */
+    static get container_class () {
+        return Container;
+    }
+}
+
+module.exports = MultiWindow;</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-cursor.html">cursor</a></li><li><a href="module-MultiWindow.html">MultiWindow</a></li></ul><h3>Classes</h3><ul><li><a href="Container.html">Container</a></li><li><a href="Extended.html">Extended</a></li><li><a href="menuCore.html">menuCore</a></li><li><a href="Multiline.html">Multiline</a></li><li><a href="MultiWindow.html">MultiWindow</a></li></ul><h3>Events</h3><ul><li><a href="Extended.html#event:line">line</a></li><li><a href="Extended.html#event:raw">raw</a></li></ul><h3><a href="global.html">Global</a></h3>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.4</a> on Sat May 02 2020 16:51:23 GMT+0200 (Central European Summer Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

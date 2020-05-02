@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: menuCore.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: menuCore.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>const multiline = require("./multiline.js");
+const extended = require ("./bloat.js");
+const {EventEmitter} = require("events");
+
+/**
+ * @typedef dualFunction
+ * @property {function} [hover] - the function to call when the element is selected but not called
+ * @property {function} [run] - the function to call when an element is selected and called
+ */
+
+/**
+ * A helper class for creating menus
+ * @extends multiline
+ */
+class menuCore extends multiline {
+    /**
+     * @param {Object} functions
+     * @param {dualFunction} functions.&lt;propertyName> - The functions for each object, the option being named after the property name. Multiple of these are to be used.
+     *
+     * @param {Object} options
+     * @param {string} [options.up="up"] - the key to use for scrolling up in the menu
+     * @param {string} [options.down="down"] - the key to use for scrolling down in the menu
+     * @param {string} [options.confirmKey="return"] - the key that is listened for selecting options
+     * @param {string} [options.updateMode="internal"] - the mode to use for updating hovered elements, either internal (process inside the class), event (emit an event), function (run a custom function)
+     * @param {function|string} [options.modifier="\x1b[7m"] - the modifier for selected text. when mode is internal, this can for example be a color code. If it is set to function, this will be the function that gets called
+     * @param {Container} [options.instance] - the container to use for modifying text if mode is set to internal. Else this is not necessary to be provided.
+     */
+    constructor(functions, options) {
+        super(Object.keys(functions));
+
+        if (options !== undefined) {
+            if (!options.hasOwnProperty("up")) {
+                options.up = "up";
+            }
+            if (!options.hasOwnProperty("down")) {
+                options.down = "down";
+            }
+            if (!options.hasOwnProperty("confirmKey")) {
+                options.confirmKey = "return";
+            }
+            if (!options.hasOwnProperty("updateMode")) {
+                options.updateMode = "internal";
+            }
+            if (!options.hasOwnProperty("modifier")) {
+                options.modifier = "\x1b[7m"
+            }
+            if (!options.hasOwnProperty("instance")) {
+                options.instance = undefined;
+            }
+        } else {
+            let options = {
+                "up" : "up",
+                "down" : "down",
+                "confirm" : true,
+                "confirmKey" : "enter"
+            }
+        }
+
+        for (let key in functions) {
+            if (typeof functions[key] === "function") {
+                let f = functions[key];
+
+                functions[key] = {};
+                functions[key].run = f;
+                functions[key].hover = () => {};
+
+                continue;
+            }
+            if (!functions[key].hasOwnProperty("hover")) {
+                functions[key].hover = () => {};
+            }
+            if (!functions[key].hasOwnProperty("run")) {
+                functions[key].run = () => {};
+            }
+        }
+
+        this.enabled = false;
+
+        //register Handler
+        this.eventUpdate = new EventEmitter();
+
+        this.updateOption = () => {
+            switch (options.updateMode) {
+                case "internal":
+                    if (options.hasOwnProperty("instance") &amp;&amp; options.instance !== undefined) {
+                        let temparr = JSON.parse(JSON.stringify(super.textArr));
+                        temparr[super.cur] = options.modifier+super.gC()+"\x1b[0m";
+                        options.instance.setTextByArray(temparr, false);
+                    }
+                    break;
+                case "event":
+                    this.eventUpdate.emit("update", super.cur, super.textArr);
+                    break;
+                case "function":
+                    options.modifier(super.textArr, super.cur);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        const readline = require('readline');
+        readline.emitKeypressEvents(process.stdin);
+        if (process.stdin.setRawMode){
+            process.stdin.setRawMode(true);
+        }
+        process.stdin.resume();
+
+        process.stdin.on("keypress", (ch, key) => {
+            if (this.enabled) {
+                if (key.ctrl || key.meta) {
+                    return;
+                }
+                switch (key.name) {
+                    case options.up:
+                        super.dec();
+                        this.updateOption();
+                        functions[super.gC()].hover();
+                        break;
+                    case options.down:
+                        super.inc();
+                        this.updateOption();
+                        functions[super.gC()].hover();
+                        break;
+                    case options.confirmKey:
+                        this.enabled = false;
+                        functions[super.gC()].run();
+                        break;
+                }
+            }
+        });
+
+        this.init = () => {
+            this.updateOption();
+            functions[super.gC()].hover();
+        }
+    }
+
+    /**
+     * Enable the menu.
+     * Will disable once an option is selected, and will emit hover update events if set to this mode in constructor, else the return can be ignored.
+     * @returns {module:events.EventEmitter.EventEmitter}
+     */
+    enable () {
+        this.enabled = true;
+        this.init();
+        return this.eventUpdate;
+    }
+}
+
+module.exports = menuCore;</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-cursor.html">cursor</a></li><li><a href="module-MultiWindow.html">MultiWindow</a></li></ul><h3>Classes</h3><ul><li><a href="Container.html">Container</a></li><li><a href="Extended.html">Extended</a></li><li><a href="menuCore.html">menuCore</a></li><li><a href="Multiline.html">Multiline</a></li><li><a href="MultiWindow.html">MultiWindow</a></li></ul><h3>Events</h3><ul><li><a href="Extended.html#event:line">line</a></li><li><a href="Extended.html#event:raw">raw</a></li></ul><h3><a href="global.html">Global</a></h3>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.4</a> on Sat May 02 2020 16:51:23 GMT+0200 (Central European Summer Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
